@@ -229,6 +229,9 @@ void minethd::work_main()
 			cl_uint results[0x100];
 			memset(results,0,sizeof(cl_uint)*(0x100));
 
+			//Small delay every job submission so the screen stays responsive
+			std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
 			XMRRunJob(pGpuCtx, results);
 
 			for(size_t i = 0; i < results[0xFF]; i++)
