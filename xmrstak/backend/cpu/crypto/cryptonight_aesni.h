@@ -356,25 +356,30 @@ template<size_t MASK, size_t ITERATIONS, size_t MEM, bool SOFT_AES, bool PREFETC
 void cryptonight_double_hash(const void* input, size_t len, void* output, cryptonight_ctx** ctx)
 {
 	keccak((const uint8_t *)input, len, ctx[0]->hash_state, 200);
-	keccak((const uint8_t *)input+len, len, ctx[1]->hash_state, 200);
 
 	// Optim - 99% time boundary
 	cn_explode_scratchpad<MEM, SOFT_AES, PREFETCH>((__m128i*)ctx[0]->hash_state, (__m128i*)ctx[0]->long_state);
-	cn_explode_scratchpad<MEM, SOFT_AES, PREFETCH>((__m128i*)ctx[1]->hash_state, (__m128i*)ctx[1]->long_state);
 
 	uint8_t* l0 = ctx[0]->long_state;
 	uint64_t* h0 = (uint64_t*)ctx[0]->hash_state;
-	uint8_t* l1 = ctx[1]->long_state;
-	uint64_t* h1 = (uint64_t*)ctx[1]->hash_state;
 
 	uint64_t axl0 = h0[0] ^ h0[4];
 	uint64_t axh0 = h0[1] ^ h0[5];
 	__m128i bx0 = _mm_set_epi64x(h0[3] ^ h0[7], h0[2] ^ h0[6]);
+
+	uint64_t idx0 = h0[0] ^ h0[4];
+
+	keccak((const uint8_t *)input+len, len, ctx[1]->hash_state, 200);
+
+	cn_explode_scratchpad<MEM, SOFT_AES, PREFETCH>((__m128i*)ctx[1]->hash_state, (__m128i*)ctx[1]->long_state);
+
+	uint8_t* l1 = ctx[1]->long_state;
+	uint64_t* h1 = (uint64_t*)ctx[1]->hash_state;
+
 	uint64_t axl1 = h1[0] ^ h1[4];
 	uint64_t axh1 = h1[1] ^ h1[5];
 	__m128i bx1 = _mm_set_epi64x(h1[3] ^ h1[7], h1[2] ^ h1[6]);
 
-	uint64_t idx0 = h0[0] ^ h0[4];
 	uint64_t idx1 = h1[0] ^ h1[4];
 
 	// Optim - 90% time boundary
@@ -443,14 +448,11 @@ void cryptonight_double_hash(const void* input, size_t len, void* output, crypto
 			_mm_prefetch((const char*)&l1[idx1 & MASK], _MM_HINT_T0);
 	}
 
-	// Optim - 90% time boundary
 	cn_implode_scratchpad<MEM, SOFT_AES, PREFETCH>((__m128i*)ctx[0]->long_state, (__m128i*)ctx[0]->hash_state);
-	cn_implode_scratchpad<MEM, SOFT_AES, PREFETCH>((__m128i*)ctx[1]->long_state, (__m128i*)ctx[1]->hash_state);
-
-	// Optim - 99% time boundary
-
 	keccakf((uint64_t*)ctx[0]->hash_state, 24);
 	extra_hashes[ctx[0]->hash_state[0] & 3](ctx[0]->hash_state, 200, (char*)output);
+
+	cn_implode_scratchpad<MEM, SOFT_AES, PREFETCH>((__m128i*)ctx[1]->long_state, (__m128i*)ctx[1]->hash_state);
 	keccakf((uint64_t*)ctx[1]->hash_state, 24);
 	extra_hashes[ctx[1]->hash_state[0] & 3](ctx[1]->hash_state, 200, (char*)output + 32);
 }
