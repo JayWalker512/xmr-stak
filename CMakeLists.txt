@@ -63,6 +63,10 @@ elseif(XMR-STAK_CURRENCY STREQUAL "monero")
     add_definitions("-DCONF_NO_AEON=1")
 endif()
 
+if(NO_PREFETCH)
+    add_definitions("-DNO_PREFETCH=1")
+endif()
+
 # option to add static libgcc and libstdc++
 option(CMAKE_LINK_STATIC "link as much as possible libraries static" OFF)
 

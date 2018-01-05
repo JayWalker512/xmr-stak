@@ -200,16 +200,20 @@ void cn_explode_scratchpad(const __m128i* input, __m128i* output)
 		_mm_store_si128(output + i + 2, xin2);
 		_mm_store_si128(output + i + 3, xin3);
 
+		#ifndef NO_PREFETCH
 		if(PREFETCH)
 			_mm_prefetch((const char*)output + i + 0, _MM_HINT_T2);
+		#endif
 
 		_mm_store_si128(output + i + 4, xin4);
 		_mm_store_si128(output + i + 5, xin5);
 		_mm_store_si128(output + i + 6, xin6);
 		_mm_store_si128(output + i + 7, xin7);
 
+		#ifndef NO_PREFETCH
 		if(PREFETCH)
 			_mm_prefetch((const char*)output + i + 4, _MM_HINT_T2);
+		#endif
 	}
 }
 
@@ -233,16 +237,20 @@ void cn_implode_scratchpad(const __m128i* input, __m128i* output)
 
 	for (size_t i = 0; i < MEM / sizeof(__m128i); i += 8)
 	{
+		#ifndef NO_PREFETCH
 		if(PREFETCH)
 			_mm_prefetch((const char*)input + i + 0, _MM_HINT_NTA);
+		#endif
 
 		xout0 = _mm_xor_si128(_mm_load_si128(input + i + 0), xout0);
 		xout1 = _mm_xor_si128(_mm_load_si128(input + i + 1), xout1);
 		xout2 = _mm_xor_si128(_mm_load_si128(input + i + 2), xout2);
 		xout3 = _mm_xor_si128(_mm_load_si128(input + i + 3), xout3);
 
+		#ifndef NO_PREFETCH
 		if(PREFETCH)
 			_mm_prefetch((const char*)input + i + 4, _MM_HINT_NTA);
+		#endif
 
 		xout4 = _mm_xor_si128(_mm_load_si128(input + i + 4), xout4);
 		xout5 = _mm_xor_si128(_mm_load_si128(input + i + 5), xout5);
@@ -319,8 +327,10 @@ void cryptonight_hash(const void* input, size_t len, void* output, cryptonight_c
 		idx0 = _mm_cvtsi128_si64(cx);
 		bx0 = cx;
 
+		#ifndef NO_PREFETCH
 		if(PREFETCH)
 			_mm_prefetch((const char*)&l0[idx0 & MASK], _MM_HINT_T0);
+		#endif
 
 		uint64_t hi, lo, cl, ch;
 		cl = ((uint64_t*)&l0[idx0 & MASK])[0];
@@ -336,8 +346,10 @@ void cryptonight_hash(const void* input, size_t len, void* output, cryptonight_c
 		al0 ^= cl;
 		idx0 = al0;
 
+		#ifndef NO_PREFETCH
 		if(PREFETCH)
 			_mm_prefetch((const char*)&l0[idx0 & MASK], _MM_HINT_T0);
+		#endif
 	}
 
 	// Optim - 90% time boundary
@@ -392,8 +404,10 @@ void cryptonight_double_hash(const void* input, size_t len, void* output, crypto
 		idx0 = _mm_cvtsi128_si64(cx);
 		bx0 = cx;
 
+		#ifndef NO_PREFETCH
 		if(PREFETCH)
 			_mm_prefetch((const char*)&l0[idx0 & MASK], _MM_HINT_T0);
+		#endif
 
 		cx = _mm_load_si128((__m128i *)&l1[idx1 & MASK]);
 
@@ -406,8 +420,10 @@ void cryptonight_double_hash(const void* input, size_t len, void* output, crypto
 		idx1 = _mm_cvtsi128_si64(cx);
 		bx1 = cx;
 
+		#ifndef NO_PREFETCH
 		if(PREFETCH)
 			_mm_prefetch((const char*)&l1[idx1 & MASK], _MM_HINT_T0);
+		#endif
 
 		uint64_t hi, lo, cl, ch;
 		cl = ((uint64_t*)&l0[idx0 & MASK])[0];
@@ -423,8 +439,10 @@ void cryptonight_double_hash(const void* input, size_t len, void* output, crypto
 		axl0 ^= cl;
 		idx0 = axl0;
 
+		#ifndef NO_PREFETCH
 		if(PREFETCH)
 			_mm_prefetch((const char*)&l0[idx0 & MASK], _MM_HINT_T0);
+		#endif
 
 		cl = ((uint64_t*)&l1[idx1 & MASK])[0];
 		ch = ((uint64_t*)&l1[idx1 & MASK])[1];
@@ -439,8 +457,10 @@ void cryptonight_double_hash(const void* input, size_t len, void* output, crypto
 		axl1 ^= cl;
 		idx1 = axl1;
 
+		#ifndef NO_PREFETCH
 		if(PREFETCH)
 			_mm_prefetch((const char*)&l1[idx1 & MASK], _MM_HINT_T0);
+		#endif
 	}
 
 	// Optim - 90% time boundary
@@ -455,6 +475,7 @@ void cryptonight_double_hash(const void* input, size_t len, void* output, crypto
 	extra_hashes[ctx[1]->hash_state[0] & 3](ctx[1]->hash_state, 200, (char*)output + 32);
 }
 
+#ifndef NO_PREFETCH
 #define CN_STEP1(a, b, c, l, ptr, idx)				\
 	a = _mm_xor_si128(a, c);				\
 	idx = _mm_cvtsi128_si64(a);				\
@@ -462,6 +483,28 @@ void cryptonight_double_hash(const void* input, size_t len, void* output, crypto
 	if(PREFETCH)						\
 		_mm_prefetch((const char*)ptr, _MM_HINT_T0);	\
 	c = _mm_load_si128(ptr)
+
+#define CN_STEP3(a, b, c, l, ptr, idx)				\
+	idx = _mm_cvtsi128_si64(c);				\
+	ptr = (__m128i *)&l[idx & MASK];			\
+	if(PREFETCH)						\
+		_mm_prefetch((const char*)ptr, _MM_HINT_T0);	\
+	b = _mm_load_si128(ptr)
+
+#else
+
+#define CN_STEP1(a, b, c, l, ptr, idx)				\
+	a = _mm_xor_si128(a, c);				\
+	idx = _mm_cvtsi128_si64(a);				\
+	ptr = (__m128i *)&l[idx & MASK];			\
+	c = _mm_load_si128(ptr)
+
+#define CN_STEP3(a, b, c, l, ptr, idx)				\
+	idx = _mm_cvtsi128_si64(c);				\
+	ptr = (__m128i *)&l[idx & MASK];			\
+	b = _mm_load_si128(ptr)
+
+#endif
 
 #define CN_STEP2(a, b, c, l, ptr, idx)				\
 	if(SOFT_AES)						\
@@ -471,17 +514,11 @@ void cryptonight_double_hash(const void* input, size_t len, void* output, crypto
 	b = _mm_xor_si128(b, c);				\
 	_mm_store_si128(ptr, b)
 
-#define CN_STEP3(a, b, c, l, ptr, idx)				\
-	idx = _mm_cvtsi128_si64(c);				\
-	ptr = (__m128i *)&l[idx & MASK];			\
-	if(PREFETCH)						\
-		_mm_prefetch((const char*)ptr, _MM_HINT_T0);	\
-	b = _mm_load_si128(ptr)
-
 #define CN_STEP4(a, b, c, l, ptr, idx)				\
 	lo = _umul128(idx, _mm_cvtsi128_si64(b), &hi);		\
 	a = _mm_add_epi64(a, _mm_set_epi64x(lo, hi));		\
 	_mm_store_si128(ptr, a)
+
 
 // This lovelier creation will do 3 cn hashes at a time.
 template<size_t MASK, size_t ITERATIONS, size_t MEM, bool SOFT_AES, bool PREFETCH>
